@@ -1,0 +1,10 @@
+config/cdn.yaml contains rules derived from third-party sources:
+
+- OWASP Core Rule Set (https://github.com/coreruleset/coreruleset)
+  Copyright (c) OWASP CRS project and contributors. Licensed under the Apache License 2.0.
+  Data lists and regular expressions were converted to AEM CDN traffic-filter syntax
+  (case-insensitive matching, argument-boundary anchors, '+' treated as space).
+
+- X4BNet lists_vpn (https://github.com/X4BNet/lists_vpn) – MIT License.
+
+- Tor Project bulk exit list (https://check.torproject.org/torbulkexitlist), optional.

