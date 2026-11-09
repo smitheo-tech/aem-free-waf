@@ -1,0 +1,167 @@
+# =====================================================================
+# Hand-maintained AEM-specific rules (not covered by OWASP CRS).
+# The generator places `before` ahead of the CRS-generated rules and
+# `after` behind them. Paths here assume an AEM Sites publish tier.
+# =====================================================================
+before:
+
+  # AEM never serves PHP/ASP/CGI/WordPress/etc. -> any such request is a probe
+  - name: aem-block-foreign-tech-probes
+    when:
+      reqProperty: path
+      matches: '(?i)(\.(php[0-9]?|phtml|phar|asp|aspx|ashx|asmx|axd|cfm|cgi|pl|py|rb|sh|jsp|jspx|do|action)$|/(wp-admin|wp-login|wp-content|wp-includes|wp-json|xmlrpc|phpmyadmin|pma|myadmin|adminer|cgi-bin|vendor/phpunit|actuator|jolokia|server-status|server-info|telescope|_ignition|solr/admin|manager/html|owa/|ecp/|autodiscover|global-protect|hnap1|boaform)(/|$|\.))'
+    action: block
+
+  # Mirrors dispatcher filters at the edge. Keeps: *.model.json,
+  # /libs/granite/csrf/token.json, /graphql/execute.json
+  - name: aem-block-sensitive-paths-publish
+    when:
+      allOf:
+        - reqProperty: tier
+          equals: publish
+        - reqProperty: path
+          matches: '(?i)(^/(crx|system/console|system/sling|bin/(querybuilder|wcmcommand|crxde|cpm|groovyconsole|reloadamt|msm|replicate|receive|backup|security)|etc/(packages|groovyconsole|replication|cloudservices|reports|workflow|truststore|keystore)|home/(users|groups)|var/(audit|classes|replication|eventing)|libs/(cq/core/content/welcome|granite/core/content/login|cq/security|granite/security|cq/i18n/dict)|apps/.*\.(json|xml)$|groovyconsole(/|$)|mnt/overlay)|\.(infinity|tidy|childrenlist|ext|sysview|docview|query|-?[0-9]+)\.(json|xml)|\.json/.*\.(css|js|ico|png|gif|html)$|;[^/]*\.(json|xml)|/_jcr_content/.*\.(json|xml)$)'
+    action:
+      type: block
+      alert: true
+
+  # Log4Shell in headers (CRS 944150 covers URL/args)
+  - name: aem-block-log4j-headers
+    when:
+      anyOf:
+        - reqHeader: user-agent
+          matches: '(?i)\$\{.{0,60}?(jndi|lower:|upper:|::-|env:|sys:|java:|base64:)'
+        - reqHeader: referer
+          matches: '(?i)\$\{.{0,60}?(jndi|lower:|upper:|::-|env:|sys:|java:|base64:)'
+        - reqHeader: x-api-version
+          matches: '\$\{'
+        - reqHeader: x-forwarded-for
+          matches: '\$\{'
+    action: block
+
+  - name: aem-block-null-byte
+    when:
+      reqProperty: url
+      matches: '(?i)(%00|%2500)'
+    action: block
+
+  - name: aem-block-oob-callback-domains
+    when:
+      anyOf:
+        - reqProperty: url
+          matches: '(?i)(oast\.(pro|live|site|online|fun|me)|interact\.sh|burpcollaborator\.net|oastify\.com|dnslog\.(cn|link)|ceye\.io|requestrepo\.com|bxss\.me)'
+        - reqHeader: user-agent
+          matches: '(?i)(oast\.|interact\.sh|burpcollaborator|oastify|dnslog\.|ceye\.io)'
+    action: block
+
+  - name: aem-no-user-agent
+    when:
+      allOf:
+        - reqProperty: tier
+          equals: publish
+        - anyOf:
+            - reqHeader: user-agent
+              exists: false
+            - reqHeader: user-agent
+              equals: ""
+    action: log
+
+  - name: aem-double-encoding
+    when:
+      reqProperty: url
+      matches: '(?i)%25(2e|2f|5c|3c|3e|22|27|00|0d|0a|3b|7c|60|24)'
+    action: log
+
+  - name: aem-write-without-content-type
+    when:
+      allOf:
+        - reqProperty: method
+          in: ["POST", "PUT", "PATCH"]
+        - reqHeader: content-type
+          exists: false
+    action: log
+
+  - name: aem-request-smuggling-headers
+    when:
+      allOf:
+        - reqHeader: transfer-encoding
+          exists: true
+        - reqHeader: content-length
+          exists: true
+    action: log
+
+  - name: aem-unexpected-methods-publish
+    when:
+      allOf:
+        - reqProperty: tier
+          equals: publish
+        - reqProperty: method
+          notIn: ["GET", "HEAD", "OPTIONS", "POST"]
+    action: log
+
+after:
+
+  # Behavioural scanner detection: many 4xx/5xx per IP
+  - name: ratelimit-error-burst-per-ip
+    when:
+      reqProperty: tier
+      in: ["author", "publish"]
+    rateLimit:
+      limit: 10
+      window: 60
+      penalty: 1800
+      count: errors
+      groupBy:
+        - reqProperty: clientIp
+    action:
+      type: log
+      alert: true
+
+  - name: ratelimit-login-endpoints
+    when:
+      reqProperty: path
+      matches: '(?i)(j_security_check|/libs/granite/core/content/login|/system/sling/login|/login\.html)'
+    rateLimit:
+      limit: 10
+      window: 60
+      penalty: 900
+      groupBy:
+        - reqProperty: clientIp
+    action: block
+
+  # Adobe's recommended standard starter rules
+  - name: limit-origin-requests-client-ip
+    when:
+      reqProperty: tier
+      equals: publish
+    rateLimit:
+      limit: 100
+      window: 10
+      penalty: 300
+      count: fetches
+      groupBy:
+        - reqProperty: clientIp
+    action: log
+
+  - name: limit-requests-client-ip
+    when:
+      reqProperty: tier
+      equals: publish
+    rateLimit:
+      limit: 500
+      window: 10
+      penalty: 300
+      groupBy:
+        - reqProperty: clientIp
+    action:
+      type: log
+      alert: true
+
+  - name: ofac-countries
+    when:
+      allOf:
+        - reqProperty: tier
+          in: ["author", "publish"]
+        - reqProperty: clientCountry
+          in: ["SY", "BY", "MM", "KP", "IQ", "CD", "SD", "IR", "LR", "ZW", "CU", "CI"]
+    action: block

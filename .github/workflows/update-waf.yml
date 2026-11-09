@@ -1,0 +1,62 @@
+name: Update free WAF rules (cdn.yaml)
+
+on:
+  schedule:
+    - cron: "17 3 * * *"        # daily 03:17 UTC – picks up new CRS releases & feed updates
+  workflow_dispatch: {}
+  push:
+    branches: [main]
+    paths:
+      - waf-config.yaml
+      - base-rules.yaml
+      - generator/**
+      - tests/**
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: update-waf
+  cancel-in-progress: false
+
+jobs:
+  regenerate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt pytest
+
+      - name: Generator unit tests
+        run: python -m pytest tests/test_bots.py -q
+
+      - name: Generate config/cdn.yaml and config/robots.txt from upstream sources
+        id: gen
+        run: python generator/generate.py
+
+      - name: Regression tests (attack must hit, legit must not be blocked)
+        run: python tests/run_tests.py && python -m pytest tests -q
+
+      - name: Open / update pull request
+        if: steps.gen.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: aem-free-waf/update
+          delete-branch: true
+          add-paths: |
+            config/cdn.yaml
+            config/robots.txt
+          commit-message: "WAF rules: regenerate from CRS ${{ steps.gen.outputs.crs_ref }} + feeds"
+          title: "WAF rules update (CRS ${{ steps.gen.outputs.crs_ref }})"
+          body-path: build-report.md
+          labels: security, automated
+
+      # Optional: if your Cloud Manager pipeline reads Adobe's own git repo instead of
+      # GitHub, mirror main there after the PR is merged (separate workflow on push to main):
+      #   git push https://${{ secrets.ADOBE_GIT_USER }}:${{ secrets.ADOBE_GIT_TOKEN }}@git.cloudmanager.adobe.com/<org>/<repo>/ main

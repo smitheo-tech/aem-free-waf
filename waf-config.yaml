@@ -1,0 +1,208 @@
+# =====================================================================
+# aem-free-waf – settings for the generator (generator/generate.py)
+# Edit this file, not config/cdn.yaml (that one is overwritten).
+# =====================================================================
+
+# Cloud Manager environments the generated cdn.yaml applies to
+envTypes: ["dev", "stage", "prod"]
+
+# Upstream OWASP CRS version: "latest" = newest v4 release tag, or pin e.g. "v4.30.0"
+crsRef: latest
+
+# Which AEM request properties hold the URL-DECODED path / url.
+# Adobe docs call the *Raw variants "unescaped". Verify once on dev (see README §Verify)
+# and swap to path/url here if your test shows otherwise.
+decodedPathProperty: pathRaw
+decodedUrlProperty: urlRaw
+
+# cdn.yaml must stay below 100 KB. Sections are added by priority until this budget
+# is used; anything that doesn't fit is skipped and reported in the PR description.
+sizeBudgetBytes: 97000
+
+# IPs / CIDRs that bypass every rule (office, monitoring, your pentest vendor)
+allowlistIps: []
+#  - "203.0.113.10"
+#  - "198.51.100.0/24"
+
+# Optional sources
+blockTorExitNodes: false        # ~1-2k IPs, ~25-35 KB of budget
+rateLimitDatacenterAsns: true   # X4BNet datacenter ASN list -> tight per-IP rate limit
+
+# Action per generated rule: log | block. Start everything risky on "log",
+# watch CDN logs 1-2 weeks, then flip to "block" here.
+actions:
+  # --- from CRS data lists (very low false-positive risk) ---
+  crs-913-scanner-user-agents: block
+  crs-930-restricted-files: block
+  crs-930-lfi-os-files: log
+  crs-932-unix-shell: log
+  crs-932-powershell: log
+  crs-934-ssrf: log
+  crs-944-java-classes: log
+  # --- from CRS regex rules ---
+  crs-921-protocol-attack: log
+  crs-930-path-traversal: block
+  crs-931-rfi: log
+  crs-932-rce: log
+  crs-941-xss: log
+  crs-942-sqli: log
+  crs-943-session-fixation: log
+  crs-944-java-attack: log
+  # --- feeds ---
+  tor-exit-nodes: block
+  ratelimit-datacenter-asn: log
+  # --- bots (see `bots:` below) ---
+  bots-fake-google: log          # flip to block once the daily PR is merged reliably (see README)
+  bots-fake-bing: log
+  bots-fake-openai: log
+  bots-fake-perplexity: log
+  bots-fake-apple: log
+  bots-fake-anthropic: log
+  bots-fake-mistral: log
+  bots-http-libraries: log       # rate-limit action once limit exceeded
+  bots-generic-crawler-ratelimit: block
+
+# Rules that send an Adobe Actions Center alert when triggered
+alerts:
+  - crs-913-scanner-user-agents
+  - crs-930-path-traversal
+  - crs-944-java-attack
+
+# CRS paranoia-level-1 regex rules to port, grouped into one CDN rule per category.
+# Order inside a group = priority when the size budget gets tight.
+# Left out on purpose: PHP (933) and Node.js (934) families (AEM is Java),
+# huge unix-command rules (932230/235/250/260/370/380, ~8-10 KB each),
+# libinjection rules (941100/942100, not regex) and chained rules.
+# SQLi: CRS PL1 relies on libinjection (not portable), so selected paranoia-level-2 regex
+# rules (942390, 942520, 942180, ...) are added; each was checked against SecLists
+# SQLi payloads for gain and against tests/samples.yaml for false positives.
+crsRegexRules:
+  crs-930-path-traversal: [930100, 930110]
+  crs-944-java-attack: [944100, 944150]
+  crs-921-protocol-attack: [921110, 921120, 921130, 921160, 921190, 921200, 921240]
+  crs-942-sqli: [942140, 942160, 942170, 942190, 942220, 942230, 942240, 942250, 942270, 942280, 942320, 942350, 942500, 942540, 942550, 942560, 942390, 942520, 942180, 942120, 942330, 942370, 942450, 942470, 942150, 942340, 942410, 942480, 942300, 942151, 942360]
+  crs-941-xss: [941110, 941120, 941130, 941140, 941170, 941180, 941190, 941200, 941210, 941220, 941230, 941240, 941250, 941260, 941270, 941280, 941290, 941300, 941350, 941360, 941370, 941390, 941400, 941160]
+  crs-932-rce: [932130, 932140, 932170, 932171, 932175, 932270, 932280]
+  crs-931-rfi: [931100, 931110, 931120]
+  crs-943-session-fixation: [943100]
+
+# ---------------------------------------------------------------------
+# Bots, crawlers, scanners & AI agents
+# ---------------------------------------------------------------------
+bots:
+  # Impostor detection: UA claims to be the bot, client IP is NOT in the vendor's published
+  # ranges. Each ipLists entry is one list; nested lists are alternative URLs for it.
+  # A vendor rule is only emitted when every list was fetched.
+  verifiedVendors:
+    google:
+      ua: '(googlebot|google-inspectiontool|googleother|storebot-google|adsbot-google|mediapartners-google|apis-google|feedfetcher-google|google-site-verification|google-cloudvertexbot)'
+      ipLists:
+        - [https://developers.google.com/static/search/apis/ipranges/googlebot.json, https://developers.google.com/static/crawling/ipranges/common-crawlers.json]
+        - [https://developers.google.com/static/search/apis/ipranges/special-crawlers.json, https://developers.google.com/static/crawling/ipranges/special-crawlers.json]
+        - [https://developers.google.com/static/search/apis/ipranges/user-triggered-fetchers.json, https://developers.google.com/static/crawling/ipranges/user-triggered-fetchers.json]
+        - [https://developers.google.com/static/search/apis/ipranges/user-triggered-fetchers-google.json, https://developers.google.com/static/crawling/ipranges/user-triggered-fetchers-google.json]
+    bing:
+      ua: '(bingbot|bingpreview|adidxbot|microsoftpreview)'
+      ipLists: [https://www.bing.com/toolbox/bingbot.json]
+    openai:
+      ua: '(gptbot|oai-searchbot|chatgpt-user|oai-adsbot)'
+      ipLists: [https://openai.com/gptbot.json, https://openai.com/searchbot.json, https://openai.com/chatgpt-user.json]
+    perplexity:
+      ua: '(perplexitybot|perplexity-user)'
+      ipLists: [https://www.perplexity.com/perplexitybot.json, https://www.perplexity.com/perplexity-user.json]
+    apple:
+      ua: '(applebot)'
+      ipLists: [https://search.developer.apple.com/applebot.json]
+    anthropic:
+      ua: '(claudebot|claude-user|claude-searchbot)'
+      ipLists: [https://claude.com/crawling/bots.json]
+    mistral:
+      ua: '(mistralai-user)'
+      ipLists: [https://mistral.ai/mistralai-user-ips.json]
+
+  # Policy per AI purpose (categories from ai.robots.txt): allow | log | ratelimit | block
+  #  ai-training      GPTBot, ClaudeBot, CCBot, Bytespider, meta-externalagent ... (model training)
+  #  ai-search        OAI-SearchBot, Claude-SearchBot, PerplexityBot ... (you appear in AI answers)
+  #  ai-assistants    ChatGPT-User, Claude-User, Perplexity-User ... (a human asked about your page)
+  #  ai-agents        browser / coding agents acting for a user
+  #  ai-data-providers  company-intelligence / data resellers
+  aiPolicy:
+    ai-training: block
+    ai-data-providers: ratelimit
+    ai-other: ratelimit
+    ai-agents: log
+    ai-search: allow
+    ai-assistants: allow
+  # Per-bot overrides (exact ai.robots.txt names)
+  aiOverrides:
+    facebookexternalhit: allow   # link previews on Facebook/WhatsApp
+    Applebot: allow              # Apple search/Siri; impostors caught by bots-fake-apple
+    Google-Extended: allow       # robots.txt token only, never sent as UA
+    Applebot-Extended: allow     # robots.txt token only
+    LAIONDownloader: block       # ignores robots.txt, bulk dataset downloads
+    Amazonbot: allow             # Alexa answers; respects robots.txt
+    GoogleOther: block           # internal research crawls, not Search; pinned so an upstream relabel can't change it
+    GoogleOther-Image: block
+    GoogleOther-Video: block
+    # OAI-AdsBot: allow          # enable if the client runs ChatGPT ads (it validates ad landing pages)
+
+  # Rate limit used by ratelimit rules (Adobe minimum is 10 req/s; window 60 = averaged over a minute)
+  rateLimit: {limit: 10, window: 60, penalty: 600}
+
+  # Scripted clients & headless browsers – rate limited, not blocked (monitoring uses curl)
+  httpLibraryUserAgents: [python-requests, python-urllib, aiohttp, httpx, 'go-http-client', 'java/', okhttp, axios, node-fetch, undici, 'libwww-perl', 'lwp-trivial', scrapy, headlesschrome, phantomjs, puppeteer, playwright, selenium, 'wget/', 'curl/', guzzlehttp, '^ruby', 'php/']
+
+  genericCrawlerRateLimit: true  # any other UA saying bot/crawler/spider -> rate limit
+  logSignedAgents: true          # log requests carrying a Web Bot Auth Signature-Agent header
+
+# ---------------------------------------------------------------------
+# robots.txt (written to config/robots.txt) and the Content-Usage response header
+# ---------------------------------------------------------------------
+robots:
+  sitemaps: []                   # absolute URLs, e.g. https://www.example.com/sitemap.xml
+  contentSignal: "search=yes, ai-input=yes, ai-train=no"   # Cloudflare Content Signals
+  contentUsage: "train-ai=n"     # IETF AIPREF: robots.txt rule + response header on publish
+  usageTokens: [__usage_ai-training]   # policy token: Disallow = prefer no AI training
+  # Control training only, never sent as a UA, so they need robots.txt rather than a CDN rule.
+  # Neither affects search visibility.
+  trainingOptOutTokens: [Google-Extended, Applebot-Extended]
+  # /etc.clientlibs/ holds CSS/JS that crawlers need to render pages; keep it open.
+  allowPaths: [/etc.clientlibs/]
+  disallowPaths: [/bin/, /libs/, /apps/, /conf/, /etc/, /home/, /var/, /tmp/, /crx/, /system/]
+  # Search and filter parameters that create endless URL variations. Pagination stays crawlable.
+  disallowQueryParams: [q, search, sort, filter, facet]
+
+# Priority order for the size budget (first = most important, always kept)
+priority:
+  - base
+  # attack protection first – never squeezed out by bot lists
+  - crs-913-scanner-user-agents
+  - crs-930-path-traversal
+  - crs-930-restricted-files
+  - crs-944-java-attack
+  - crs-942-sqli
+  - crs-941-xss
+  - crs-921-protocol-attack
+  - crs-932-rce
+  - bots-ai-block
+  - bots-generic-crawler-ratelimit
+  - bots-http-libraries
+  - bots-ai-ratelimit
+  - bots-signed-agents
+  - bots-ai-log
+  - bots-fake-google
+  - bots-fake-bing
+  - bots-fake-openai
+  - bots-fake-anthropic
+  - bots-fake-perplexity
+  - bots-fake-apple
+  - bots-fake-mistral
+  - crs-944-java-classes
+  - crs-931-rfi
+  - crs-934-ssrf
+  - crs-943-session-fixation
+  - ratelimit-datacenter-asn
+  - tor-exit-nodes
+  - crs-930-lfi-os-files
+  - crs-932-unix-shell
+  - crs-932-powershell

@@ -1,0 +1,55 @@
+aem-free-waf
+============
+Copyright 2026 Smitheo. Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+config/cdn.yaml and config/robots.txt are generated from the third-party sources below.
+Each source keeps its own licence. Licences were checked at the source on 2026-11-09.
+
+- OWASP Core Rule Set (https://github.com/coreruleset/coreruleset)
+  Copyright 2026 OWASP CRS project. Licensed under the Apache License, Version 2.0
+  (https://www.apache.org/licenses/LICENSE-2.0). CRS ships no NOTICE file.
+  Modifications: data lists and regular expressions were converted to AEM CDN
+  traffic-filter syntax (case-insensitive matching, argument-boundary anchors,
+  '+' treated as space, ARGS rules scoped to the query string). Only a subset of
+  rules is used; this is not the CRS and is not endorsed by the OWASP CRS project.
+
+- X4BNet lists_vpn (https://github.com/X4BNet/lists_vpn)
+  Copyright (c) 2026 X4B (Mathew Heard). MIT License (stated in the repository README).
+  Only the curated ASN list (input/datacenter/ASN.txt) is used. The repository's generated
+  IP ranges, which are derived from IPLocate data under CC BY-SA 4.0, are NOT used.
+
+- ai.robots.txt (https://github.com/ai-robots-txt/ai.robots.txt)
+  Copyright (c) 2024 ai.robots.txt. MIT License.
+
+- Tor exit list (optional): Tor Project bulk exit list
+  (https://check.torproject.org/torbulkexitlist), a public list of IP addresses.
+  Fallback mirror: SecOps-Institute/Tor-IP-Addresses
+  (https://github.com/SecOps-Institute/Tor-IP-Addresses),
+  Copyright (c) 2023 SecOps - Institute of Information Security. MIT License.
+
+- Crawler IP ranges published by Google, Microsoft (Bing), OpenAI, Perplexity, Apple,
+  Anthropic and Mistral at the URLs listed in waf-config.yaml. Used only as IP address
+  lists to verify crawler identity.
+
+MIT License notice (applies to the MIT-licensed sources above):
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this
+  software and associated documentation files (the "Software"), to deal in the Software
+  without restriction, including without limitation the rights to use, copy, modify,
+  merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+  permit persons to whom the Software is furnished to do so, subject to the following
+  conditions: The above copyright notice and this permission notice shall be included
+  in all copies or substantial portions of the Software.
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+  INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
+  PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE
+  FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+  OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+  DEALINGS IN THE SOFTWARE.
+
+Trademarks
+----------
+Adobe, Adobe Experience Manager and AEM are trademarks of Adobe Inc. aem-free-waf is not
+affiliated with or endorsed by Adobe. It does not reproduce or replace Adobe's licensed
+WAF rules (Extended Security / WAF-DDoS Protection). It is an alternative built only from
+standard traffic filter rules, with lower and different coverage (see README, "Limitations").

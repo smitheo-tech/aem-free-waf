@@ -1,0 +1,9 @@
+.cache/
+build-report.md
+__pycache__/
+.DS_Store
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+CLAUDE.local.md
+.coverage
